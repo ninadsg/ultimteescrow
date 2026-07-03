@@ -2604,7 +2604,9 @@ Fee: {ESCROW_FEE}%
 
 # ============ MAIN ============
 
-def main():
+import asyncio
+
+async def async_main():
     try:
         print("━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🤖 Starting Escrow Bot...")
@@ -2614,67 +2616,25 @@ def main():
         print("⏳ Checking payments every 30 seconds...")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━")
         
-        # Start web server for Render (keep alive)
+        # Start web server for Render
         Thread(target=run_web_server).start()
         
         # Create Application
         app = Application.builder().token(TOKEN).build()
         
-        # Add all handlers
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("help", help_command))
-        app.add_handler(CommandHandler("escrow", escrow_command))
-        app.add_handler(CommandHandler("agree", agree_command))
-        app.add_handler(CommandHandler("release", release_command))
-        app.add_handler(CommandHandler("refund", refund_command))
-        app.add_handler(CommandHandler("received", received_command))
-        app.add_handler(CommandHandler("upi", upi_for_deal))
-        app.add_handler(CommandHandler("promote", promote_command))
-        app.add_handler(CommandHandler("demote", demote_command))
-        app.add_handler(CommandHandler("fee", fee_command))
-        app.add_handler(CommandHandler("rlsdone", rlsdone_command))
-        app.add_handler(CommandHandler("refunddone", refunddone_command))
-        app.add_handler(CommandHandler("status", status_command))
-        app.add_handler(CommandHandler("cancel", cancel_command))
-        app.add_handler(CommandHandler("owner_panel", owner_panel))
+        # ... (all your handlers) ...
         
-        # Conversation handler
-        conv_handler = ConversationHandler(
-            entry_points=[
-                CommandHandler("addupi", get_upi_from_user),
-                CallbackQueryHandler(handle_admin_setup, pattern="admin_setup")
-            ],
-            states={
-                UPI_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_upi_from_user)],
-                GMAIL_KEY_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gmail_key)],
-                UPLOAD_QR: [MessageHandler(filters.PHOTO, get_manual_qr)],
-            },
-            fallbacks=[CommandHandler("cancel", cancel_setup)],
-        )
-        app.add_handler(conv_handler)
-        
-        # Message handler for dashboard
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_dashboard_text))
-        
-        # Callback handlers
-        app.add_handler(CallbackQueryHandler(handle_escrow_selection, pattern="select_escrow_"))
-        app.add_handler(CallbackQueryHandler(handle_paid, pattern="paid_"))
-        app.add_handler(CallbackQueryHandler(handle_check_payment, pattern="check_"))
-        app.add_handler(CallbackQueryHandler(handle_view_form, pattern="view_form_"))
-        app.add_handler(CallbackQueryHandler(handle_admin_panel_buttons, pattern="admin_"))
-        app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="bot_stats"))
-        app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="active_deals"))
-        app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="escrower_list"))
-        app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="refresh_panel"))
-        app.add_handler(CallbackQueryHandler(handle_cancel_deal, pattern="cancel_deal_"))
-        
-        # Start payment checker - FIXED for Docker
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.create_task(check_pending_payments())
+        # Start payment checker
+        asyncio.create_task(check_pending_payments())
         
         print("✅ Bot is running!")
-        app.run_polling()
+        await app.run_polling()
         
     except Exception as e:
         print(f"❌ Main error: {e}")
+
+def main():
+    asyncio.run(async_main())
+
+if __name__ == "__main__":
+    main()
