@@ -2607,26 +2607,23 @@ Fee: {ESCROW_FEE}%
 def main():
     try:
         print("━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("🤖 Starting Escrow Bot...")
+        print("🤖 Escrow Bot Starting...")
         print(f"👑 Owner: @{OWNER_USERNAME}")
-        print(f"💰 Fee: {ESCROW_FEE}%")
-        print(f"📊 Deal Counter: {deal_counter}")
-        print("⏳ Checking payments every 30 seconds...")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━")
-        
-        # Start web server for Render
-        Thread(target=run_web_server).start()
         
         # Create Application
         app = Application.builder().token(TOKEN).build()
         
         # ... ALL YOUR HANDLERS ...
         
-        print("✅ Bot is running!")
+        # Start web server
+        Thread(target=run_web_server, daemon=True).start()
+        
+        print("✅ Bot is ready!")
+        print("⏳ Listening for Telegram messages...")
+        
+        # Start polling - THIS WORKS
         app.run_polling()
         
     except Exception as e:
         print(f"❌ Main error: {e}")
-
-if __name__ == "__main__":
-    main()
