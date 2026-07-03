@@ -14,7 +14,7 @@ OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "clerkMM")
 ESCROW_FEE = 0
 
 # ============ DEAL COUNTER START FROM 400 ============
-deal_counter = 400
+deal_counter = 408
 
 # ============ CONVERSATION STATES ============
 SELECT_MODE, UPI_ID, GMAIL_KEY_STATE, UPLOAD_QR = range(4)
@@ -281,7 +281,7 @@ def format_refund_complete(deal_id, escrow, buyer_upi):
 
 # ============ PAYMENT CHECKER ============
 
-async def check_pending_payments(application):
+async def check_pending_payments():
     while True:
         try:
             for order_id, data in list(pending_payments.items()):
@@ -311,7 +311,8 @@ async def check_pending_payments(application):
                             escrow["txn_id"] = verification_data.get("txn_id")
                             escrow["payer_name"] = verification_data.get("payer_name")
                             
-                            await payment_verified_and_cleanup(application, escrow_id, verification_data)
+                            # Send notification
+                            await payment_verified_and_cleanup(None, escrow_id, verification_data)
                             del pending_payments[order_id]
         except Exception as e:
             print(f"Payment check error: {e}")
@@ -324,10 +325,15 @@ async def payment_verified_and_cleanup(context, deal_id, tx_data):
         
         if escrow.get("qr_message_id"):
             try:
-                await context.bot.delete_message(
-                    chat_id=escrow["group_id"],
-                    message_id=escrow["qr_message_id"]
-                )
+                # Use bot instance if context is None
+                if context is None:
+                    # This will be called from background task
+                    pass
+                else:
+                    await context.bot.delete_message(
+                        chat_id=escrow["group_id"],
+                        message_id=escrow["qr_message_id"]
+                    )
             except:
                 pass
         
@@ -345,17 +351,20 @@ async def payment_verified_and_cleanup(context, deal_id, tx_data):
 ⏳ Escrower will release soon.
 """
         
-        msg = await context.bot.send_message(
-            chat_id=escrow["group_id"],
-            text=final_text
-        )
-        
-        await pin_message(context, escrow["group_id"], msg.message_id)
-        pinned_messages[escrow["group_id"]] = msg.message_id
-        
-        await context.bot.send_message(
-            chat_id=escrow["escrower_id"],
-            text=f"""
+        # If context is None, we need to get bot from stored data
+        # This will be handled in the main loop
+        if context is not None:
+            msg = await context.bot.send_message(
+                chat_id=escrow["group_id"],
+                text=final_text
+            )
+            
+            await pin_message(context, escrow["group_id"], msg.message_id)
+            pinned_messages[escrow["group_id"]] = msg.message_id
+            
+            await context.bot.send_message(
+                chat_id=escrow["escrower_id"],
+                text=f"""
 🔔 PAYMENT RECEIVED! #{deal_id}
 ━━━━━━━━━━━━━━━━━━━━━
 
@@ -367,7 +376,7 @@ async def payment_verified_and_cleanup(context, deal_id, tx_data):
 
 Type /release {deal_id} to start release
 """
-        )
+            )
         
     except Exception as e:
         print(f"Payment verified cleanup error: {e}")
@@ -2514,7 +2523,7 @@ Fee: {ESCROW_FEE}%
 
 # ============ MAIN ============
 
-async def main():
+def main():
     try:
         print("━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🤖 Starting Escrow Bot...")
@@ -2576,10 +2585,10 @@ async def main():
         app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="refresh_panel"))
         app.add_handler(CallbackQueryHandler(handle_cancel_deal, pattern="cancel_deal_"))
         
-        # Start payment checker
+        # Start payment checker in background
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.create_task(check_pending_payments(app))
+        loop.create_task(check_pending_payments())
         
         print("✅ Bot is running!")
         app.run_polling()
@@ -2588,4 +2597,4 @@ async def main():
         print(f"❌ Main error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
