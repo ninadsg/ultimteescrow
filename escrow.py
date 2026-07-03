@@ -311,75 +311,12 @@ async def check_pending_payments():
                             escrow["txn_id"] = verification_data.get("txn_id")
                             escrow["payer_name"] = verification_data.get("payer_name")
                             
-                            # Send notification
-                            await payment_verified_and_cleanup(None, escrow_id, verification_data)
+                            # We'll handle notification differently
                             del pending_payments[order_id]
         except Exception as e:
             print(f"Payment check error: {e}")
         
         await asyncio.sleep(30)
-
-async def payment_verified_and_cleanup(context, deal_id, tx_data):
-    try:
-        escrow = escrows[deal_id]
-        
-        if escrow.get("qr_message_id"):
-            try:
-                # Use bot instance if context is None
-                if context is None:
-                    # This will be called from background task
-                    pass
-                else:
-                    await context.bot.delete_message(
-                        chat_id=escrow["group_id"],
-                        message_id=escrow["qr_message_id"]
-                    )
-            except:
-                pass
-        
-        final_text = f"""
-✅ PAYMENT VERIFIED! #{deal_id}
-━━━━━━━━━━━━━━━━━━━━━
-
-🆔 Deal: #{deal_id}
-💰 Amount: ₹{escrow['amount']}
-👤 Buyer: @{escrow['buyer']}
-👤 Seller: @{escrow['seller']}
-🔐 Escrower: @{escrow['escrower_username']}
-🆔 TXN: {tx_data.get('txn_id', 'N/A')}
-
-⏳ Escrower will release soon.
-"""
-        
-        # If context is None, we need to get bot from stored data
-        # This will be handled in the main loop
-        if context is not None:
-            msg = await context.bot.send_message(
-                chat_id=escrow["group_id"],
-                text=final_text
-            )
-            
-            await pin_message(context, escrow["group_id"], msg.message_id)
-            pinned_messages[escrow["group_id"]] = msg.message_id
-            
-            await context.bot.send_message(
-                chat_id=escrow["escrower_id"],
-                text=f"""
-🔔 PAYMENT RECEIVED! #{deal_id}
-━━━━━━━━━━━━━━━━━━━━━
-
-🆔 Deal: #{deal_id}
-💰 Amount: ₹{escrow['amount']}
-👤 Buyer: @{escrow['buyer']}
-👤 Seller: @{escrow['seller']}
-🆔 TXN: {tx_data.get('txn_id', 'N/A')}
-
-Type /release {deal_id} to start release
-"""
-            )
-        
-    except Exception as e:
-        print(f"Payment verified cleanup error: {e}")
 
 # ============ DM DASHBOARD ============
 
@@ -1167,7 +1104,42 @@ async def received_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         verified_payments.add(escrow["order_id"])
         escrow["status"] = "payment_received"
         
-        await payment_verified_and_cleanup(context, deal_id, {"txn_id": "MANUAL", "status": "paid"})
+        # Send notification
+        final_text = f"""
+✅ PAYMENT VERIFIED! #{deal_id}
+━━━━━━━━━━━━━━━━━━━━━
+
+🆔 Deal: #{deal_id}
+💰 Amount: ₹{escrow['amount']}
+👤 Buyer: @{escrow['buyer']}
+👤 Seller: @{escrow['seller']}
+🔐 Escrower: @{escrow['escrower_username']}
+
+⏳ Escrower will release soon.
+"""
+        
+        msg = await context.bot.send_message(
+            chat_id=escrow["group_id"],
+            text=final_text
+        )
+        
+        await pin_message(context, escrow["group_id"], msg.message_id)
+        pinned_messages[escrow["group_id"]] = msg.message_id
+        
+        await context.bot.send_message(
+            chat_id=escrow["escrower_id"],
+            text=f"""
+🔔 PAYMENT RECEIVED! #{deal_id}
+━━━━━━━━━━━━━━━━━━━━━
+
+🆔 Deal: #{deal_id}
+💰 Amount: ₹{escrow['amount']}
+👤 Buyer: @{escrow['buyer']}
+👤 Seller: @{escrow['seller']}
+
+Type /release {deal_id} to start release
+"""
+        )
         
         await update.message.reply_text(
             f"✅ Payment manually confirmed!\n\nDeal: #{deal_id}\nAmount: ₹{escrow['amount']}\n\n⏳ Now type /release {deal_id} to start release"
@@ -1756,7 +1728,54 @@ Check your UPI and confirm with /received {deal_id}
             escrow["txn_id"] = verification_data.get("txn_id")
             escrow["payer_name"] = verification_data.get("payer_name")
             
-            await payment_verified_and_cleanup(context, deal_id, verification_data)
+            # Send notification
+            final_text = f"""
+✅ PAYMENT VERIFIED! #{deal_id}
+━━━━━━━━━━━━━━━━━━━━━
+
+🆔 Deal: #{deal_id}
+💰 Amount: ₹{escrow['amount']}
+👤 Buyer: @{escrow['buyer']}
+👤 Seller: @{escrow['seller']}
+🔐 Escrower: @{escrow['escrower_username']}
+🆔 TXN: {verification_data.get('txn_id', 'N/A')}
+
+⏳ Escrower will release soon.
+"""
+            
+            # Delete QR message
+            if escrow.get("qr_message_id"):
+                try:
+                    await context.bot.delete_message(
+                        chat_id=escrow["group_id"],
+                        message_id=escrow["qr_message_id"]
+                    )
+                except:
+                    pass
+            
+            msg = await context.bot.send_message(
+                chat_id=escrow["group_id"],
+                text=final_text
+            )
+            
+            await pin_message(context, escrow["group_id"], msg.message_id)
+            pinned_messages[escrow["group_id"]] = msg.message_id
+            
+            await context.bot.send_message(
+                chat_id=escrow["escrower_id"],
+                text=f"""
+🔔 PAYMENT RECEIVED! #{deal_id}
+━━━━━━━━━━━━━━━━━━━━━
+
+🆔 Deal: #{deal_id}
+💰 Amount: ₹{escrow['amount']}
+👤 Buyer: @{escrow['buyer']}
+👤 Seller: @{escrow['seller']}
+🆔 TXN: {verification_data.get('txn_id', 'N/A')}
+
+Type /release {deal_id} to start release
+"""
+            )
             
             await query.edit_message_caption(
                 caption=f"""
@@ -1848,7 +1867,54 @@ async def handle_check_payment(update: Update, context: ContextTypes.DEFAULT_TYP
             escrow["txn_id"] = verification_data.get("txn_id")
             escrow["payer_name"] = verification_data.get("payer_name")
             
-            await payment_verified_and_cleanup(context, deal_id, verification_data)
+            # Send notification
+            final_text = f"""
+✅ PAYMENT VERIFIED! #{deal_id}
+━━━━━━━━━━━━━━━━━━━━━
+
+🆔 Deal: #{deal_id}
+💰 Amount: ₹{escrow['amount']}
+👤 Buyer: @{escrow['buyer']}
+👤 Seller: @{escrow['seller']}
+🔐 Escrower: @{escrow['escrower_username']}
+🆔 TXN: {verification_data.get('txn_id', 'N/A')}
+
+⏳ Escrower will release soon.
+"""
+            
+            # Delete QR message
+            if escrow.get("qr_message_id"):
+                try:
+                    await context.bot.delete_message(
+                        chat_id=escrow["group_id"],
+                        message_id=escrow["qr_message_id"]
+                    )
+                except:
+                    pass
+            
+            msg = await context.bot.send_message(
+                chat_id=escrow["group_id"],
+                text=final_text
+            )
+            
+            await pin_message(context, escrow["group_id"], msg.message_id)
+            pinned_messages[escrow["group_id"]] = msg.message_id
+            
+            await context.bot.send_message(
+                chat_id=escrow["escrower_id"],
+                text=f"""
+🔔 PAYMENT RECEIVED! #{deal_id}
+━━━━━━━━━━━━━━━━━━━━━
+
+🆔 Deal: #{deal_id}
+💰 Amount: ₹{escrow['amount']}
+👤 Buyer: @{escrow['buyer']}
+👤 Seller: @{escrow['seller']}
+🆔 TXN: {verification_data.get('txn_id', 'N/A')}
+
+Type /release {deal_id} to start release
+"""
+            )
             
             await query.edit_message_caption(
                 caption=f"""
@@ -2585,10 +2651,8 @@ def main():
         app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="refresh_panel"))
         app.add_handler(CallbackQueryHandler(handle_cancel_deal, pattern="cancel_deal_"))
         
-        # Start payment checker in background
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.create_task(check_pending_payments())
+        # Start payment checker in background - FIXED for Render
+        asyncio.create_task(check_pending_payments())
         
         print("✅ Bot is running!")
         app.run_polling()
