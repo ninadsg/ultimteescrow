@@ -2651,8 +2651,13 @@ def main():
         app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="refresh_panel"))
         app.add_handler(CallbackQueryHandler(handle_cancel_deal, pattern="cancel_deal_"))
         
-        # Start payment checker in background - FIXED for Render
-        asyncio.create_task(check_pending_payments())
+        # Start payment checker in background
+        # Use a different approach for Render deployment
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Start the background task properly
+        task = loop.create_task(check_pending_payments())
         
         print("✅ Bot is running!")
         app.run_polling()
