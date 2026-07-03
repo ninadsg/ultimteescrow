@@ -5,6 +5,8 @@ import time
 import asyncio
 from datetime import datetime
 import os
+from flask import Flask
+from threading import Thread
 
 # ============ CONFIGURATION ============
 TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
@@ -12,6 +14,21 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "https://fam-way-pro.onrender.com"
 OWNER_USER_ID = int(os.environ.get("OWNER_USER_ID", 8558052873))
 OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "clerkMM")
 ESCROW_FEE = 0
+
+# ============ KEEP ALIVE WEB SERVER ============
+app_flask = Flask(__name__)
+
+@app_flask.route('/')
+def home():
+    return "🤖 Escrow Bot is Running!"
+
+@app_flask.route('/health')
+def health():
+    return "OK", 200
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host='0.0.0.0', port=port, debug=False)
 
 # ============ DEAL COUNTER START FROM 400 ============
 deal_counter = 408
@@ -310,8 +327,6 @@ async def check_pending_payments():
                             escrow["status"] = "payment_received"
                             escrow["txn_id"] = verification_data.get("txn_id")
                             escrow["payer_name"] = verification_data.get("payer_name")
-                            
-                            # We'll handle notification differently
                             del pending_payments[order_id]
         except Exception as e:
             print(f"Payment check error: {e}")
@@ -2599,6 +2614,9 @@ def main():
         print("⏳ Checking payments every 30 seconds...")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━")
         
+        # Start web server for Render (keep alive)
+        Thread(target=run_web_server).start()
+        
         app = Application.builder().token(TOKEN).build()
         
         # Conversation handler for UPI setup
@@ -2651,13 +2669,8 @@ def main():
         app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="refresh_panel"))
         app.add_handler(CallbackQueryHandler(handle_cancel_deal, pattern="cancel_deal_"))
         
-        # Start payment checker in background
-        # Use a different approach for Render deployment
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Start the background task properly
-        task = loop.create_task(check_pending_payments())
+        # Start payment checker - FIXED for Render
+        asyncio.create_task(check_pending_payments())
         
         print("✅ Bot is running!")
         app.run_polling()
