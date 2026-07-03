@@ -2617,23 +2617,10 @@ def main():
         # Start web server for Render (keep alive)
         Thread(target=run_web_server).start()
         
+        # Create Application
         app = Application.builder().token(TOKEN).build()
         
-        # Conversation handler for UPI setup
-        conv_handler = ConversationHandler(
-            entry_points=[
-                CommandHandler("addupi", get_upi_from_user),
-                CallbackQueryHandler(handle_admin_setup, pattern="admin_setup")
-            ],
-            states={
-                UPI_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_upi_from_user)],
-                GMAIL_KEY_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gmail_key)],
-                UPLOAD_QR: [MessageHandler(filters.PHOTO, get_manual_qr)],
-            },
-            fallbacks=[CommandHandler("cancel", cancel_setup)],
-        )
-        
-        # Commands
+        # Add all handlers
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CommandHandler("help", help_command))
         app.add_handler(CommandHandler("escrow", escrow_command))
@@ -2652,9 +2639,21 @@ def main():
         app.add_handler(CommandHandler("owner_panel", owner_panel))
         
         # Conversation handler
+        conv_handler = ConversationHandler(
+            entry_points=[
+                CommandHandler("addupi", get_upi_from_user),
+                CallbackQueryHandler(handle_admin_setup, pattern="admin_setup")
+            ],
+            states={
+                UPI_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_upi_from_user)],
+                GMAIL_KEY_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gmail_key)],
+                UPLOAD_QR: [MessageHandler(filters.PHOTO, get_manual_qr)],
+            },
+            fallbacks=[CommandHandler("cancel", cancel_setup)],
+        )
         app.add_handler(conv_handler)
         
-        # Message handler for dashboard text buttons
+        # Message handler for dashboard
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_dashboard_text))
         
         # Callback handlers
@@ -2669,14 +2668,13 @@ def main():
         app.add_handler(CallbackQueryHandler(handle_owner_panel_buttons, pattern="refresh_panel"))
         app.add_handler(CallbackQueryHandler(handle_cancel_deal, pattern="cancel_deal_"))
         
-        # Start payment checker - FIXED for Render
-        asyncio.create_task(check_pending_payments())
+        # Start payment checker - FIXED for Docker
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.create_task(check_pending_payments())
         
         print("✅ Bot is running!")
         app.run_polling()
         
     except Exception as e:
         print(f"❌ Main error: {e}")
-
-if __name__ == "__main__":
-    main()
